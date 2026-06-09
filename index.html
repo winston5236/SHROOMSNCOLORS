@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Hex Organizer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f5f5f7;
+            color: #333;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background-color: #fff;
+            padding: 15px 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            color: #1d1d1f;
+        }
+
+        .split-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .side {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+            transition: background-color 0.3s;
+        }
+
+        #left-side {
+            border-right: 2px solid #e5e5e7;
+            background-color: #fafafa;
+        }
+
+        #right-side {
+            background-color: #fcfcfc;
+        }
+
+        .side-header {
+            margin-bottom: 15px;
+        }
+
+        .side-header h2 {
+            font-size: 1.3rem;
+            margin-bottom: 10px;
+            color: #424245;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        textarea {
+            flex: 1;
+            height: 60px;
+            padding: 10px;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            resize: none;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #0071e3;
+        }
+
+        button {
+            background-color: #0071e3;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0 15px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #0077ed;
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 15px;
+            align-content: start;
+        }
+
+        .color-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: white;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .color-square {
+            width: 80px;
+            height: 80px;
+            border-radius: 14px;
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+        }
+
+        .color-label {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #6e6e73;
+            text-transform: uppercase;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Color Hex Organizer</h1>
+    </header>
+
+    <div class="split-container">
+        <div id="left-side" class="side">
+            <div class="side-header">
+                <h2>人為色 (Artificial Colors)</h2>
+                <div class="input-area">
+                    <textarea id="left-input" placeholder="Paste HEX codes here (e.g., #ff0000, 00ff00, #333)"></textarea>
+                    <button onclick="processColors('left')">Add</button>
+                </div>
+            </div>
+            <div id="left-grid" class="color-grid"></div>
+        </div>
+
+        <div id="right-side" class="side">
+            <div class="side-header">
+                <h2>自然色 (Natural Colors)</h2>
+                <div class="input-area">
+                    <textarea id="right-input" placeholder="Paste HEX codes here (e.g., #8b5a2b, 4f7942)"></textarea>
+                    <button onclick="processColors('right')">Add</button>
+                </div>
+            </div>
+            <div id="right-grid" class="color-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global state tracking lists of valid hex colors for each side
+        const colorLists = {
+            left: [],
+            right: []
+        };
+
+        // Helper function to extract valid hex codes from a text block
+        function extractHexCodes(text) {
+            // Regex matches 3 or 6 digit hex codes, with or without '#'
+            const regex = /#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})/g;
+            const matches = text.match(regex) || [];
+            
+            return matches.map(hex => {
+                // Ensure everything is formatted consistently with a '#' and uppercase
+                let cleanHex = hex.startsWith('#') ? hex : '#' + hex;
+                
+                // Expand short 3-digit hex (#fff -> #ffffff)
+                if (cleanHex.length === 4) {
+                    cleanHex = '#' + cleanHex[1] + cleanHex[1] + cleanHex[2] + cleanHex[2] + cleanHex[3] + cleanHex[3];
+                }
+                return cleanHex.toUpperCase();
+            });
+        }
+
+        // Convert HEX to HSL (Hue, Saturation, Lightness) for logical sorting
+        function hexToHsl(hex) {
+            let r = parseInt(hex.substring(1, 3), 16) / 255;
+            let g = parseInt(hex.substring(3, 5), 16) / 255;
+            let b = parseInt(hex.substring(5, 7), 16) / 255;
+
+            let max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {
+                h = s = 0; // achromatic
+            } else {
+                let d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+
+            return {
+                h: h * 360, // Hue degrees (0-360)
+                s: s * 100, // Saturation %
+                l: l * 100  // Lightness %
+            };
+        }
+
+        // Sort colors based on Color Theory (Primary sorting by Hue, secondary by Saturation/Lightness)
+        function sortColorsByTheory(hexArray) {
+            return hexArray.sort((a, b) => {
+                const hslA = hexToHsl(a);
+                const hslB = hexToHsl(b);
+
+                // Group very dark or very light colors (neutrals) separately if desired,
+                // but standard hue sorting is usually best for a clean spectrum rainbow effect.
+                if (hslA.h !== hslB.h) {
+                    return hslA.h - hslB.h; // Sort by rainbow order
+                }
+                if (hslA.s !== hslB.s) {
+                    return hslA.s - hslB.s; // Then by richness
+                }
+                return hslA.l - hslB.l;     // Then by brightness
+            });
+        }
+
+        // Main controller function to handle data processing and DOM updating
+        function processColors(side) {
+            const inputElement = document.getElementById(`${side}-input`);
+            const gridElement = document.getElementById(`${side}-grid`);
+            
+            const newHexes = extractHexCodes(inputElement.value);
+            
+            if (newHexes.length === 0) {
+                alert("No valid HEX codes found. Try format like #FF5733 or 333.");
+                return;
+            }
+
+            // Merge new colors with existing colors, keeping unique entries
+            const combinedList = [...colorLists[side], ...newHexes];
+            colorLists[side] = [...newSet = new Set(combinedList)]; // Removes duplicates
+
+            // Apply color theory sorting
+            colorLists[side] = sortColorsByTheory(colorLists[side]);
+
+            // Clear UI grid and rebuild it dynamically
+            gridElement.innerHTML = '';
+            colorLists[side].forEach(hex => {
+                const card = document.createElement('div');
+                card.className = 'color-card';
+
+                const square = document.createElement('div');
+                square.className = 'color-square';
+                square.style.backgroundColor = hex;
+
+                const label = document.createElement('div');
+                label.className = 'color-label';
+                label.innerText = hex;
+
+                card.appendChild(square);
+                card.appendChild(label);
+                gridElement.appendChild(card);
+            });
+
+            // Reset textarea for next inputs
+            inputElement.value = '';
+        }
+    </script>
+</body>
+</html>
