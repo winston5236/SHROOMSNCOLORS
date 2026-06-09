@@ -23,15 +23,42 @@
 
         header {
             background-color: #fff;
-            padding: 15px 20px;
-            text-align: center;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             z-index: 10;
         }
 
         header h1 {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             color: #1d1d1f;
+        }
+
+        /* Refresh Button Styling */
+        .refresh-btn {
+            background-color: #0071e3;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 2px 4px rgba(0, 113, 227, 0.2);
+        }
+
+        .refresh-btn:hover {
+            background-color: #0077ed;
+        }
+
+        .refresh-btn:active {
+            transform: scale(0.97);
         }
 
         .split-container {
@@ -68,11 +95,10 @@
         }
 
         .side-header h2 {
-            font-size: 1.3rem;
+            font-size: 1.2rem;
             color: #424245;
         }
 
-        /* Floating Input Container */
         .input-container {
             position: relative;
             display: flex;
@@ -114,7 +140,6 @@
             border-color: #0071e3;
         }
 
-        /* Circle Toggle Button */
         .toggle-btn {
             width: 36px;
             height: 36px;
@@ -151,10 +176,6 @@
             font-weight: 500;
         }
 
-        .add-btn:hover {
-            background-color: #28a745;
-        }
-
         .color-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
@@ -170,7 +191,7 @@
             padding: 8px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-            animation: fadeIn 0.3s ease-out;
+            transition: transform 0.4s ease, opacity 0.4s ease;
         }
 
         .color-square {
@@ -188,9 +209,10 @@
             text-transform: uppercase;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
+        /* Shuffle animation class triggered via JS */
+        .shuffling {
+            transform: scale(0.8);
+            opacity: 0;
         }
 
         @keyframes slideIn {
@@ -203,6 +225,10 @@
 
     <header>
         <h1>Color Hex Organizer</h1>
+        <button class="refresh-btn" onclick="reshuffleAndSort()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Refresh Grid
+        </button>
     </header>
 
     <div class="split-container">
@@ -241,10 +267,8 @@
         function toggleInput(side) {
             const panel = document.getElementById(`${side}-panel`);
             const btn = document.getElementById(`${side}-toggle`);
-            
             panel.classList.toggle('active');
             btn.classList.toggle('open');
-            
             if (panel.classList.contains('active')) {
                 document.getElementById(`${side}-input`).focus();
             }
@@ -253,7 +277,6 @@
         function extractHexCodes(text) {
             const regex = /#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})/g;
             const matches = text.match(regex) || [];
-            
             return matches.map(hex => {
                 let cleanHex = hex.startsWith('#') ? hex : '#' + hex;
                 if (cleanHex.length === 4) {
@@ -263,54 +286,44 @@
             });
         }
 
-        // Advanced Color Sorting algorithm using step-sorting methods
+        // Improved Spectrum Sorting Engine (Isolates pure neutrals vs true hues)
         function sortColorsByTheory(hexArray) {
             return hexArray.sort((hexA, hexB) => {
-                // Get RGB values
-                const rA = parseInt(hexA.substring(1, 3), 16);
-                const gA = parseInt(hexA.substring(3, 5), 16);
-                const bA = parseInt(hexA.substring(5, 7), 16);
+                const hslA = hexToHsl(hexA);
+                const hslB = hexToHsl(hexB);
 
-                const rB = parseInt(hexB.substring(1, 3), 16);
-                const gB = parseInt(hexB.substring(3, 5), 16);
-                const bB = parseInt(hexB.substring(5, 7), 16);
+                // Define what counts as a neutral color (low saturation grays/browns/whites)
+                const isNeutralA = hslA.s < 12 || (hslA.l > 85 && hslA.s < 20) || hslA.l < 15;
+                const isNeutralB = hslB.s < 12 || (hslB.l > 85 && hslB.s < 20) || hslB.l < 15;
 
-                // Convert to HSL
-                const hslA = rgbToHsl(rA, gA, bA);
-                const hslB = rgbToHsl(rB, gB, bB);
+                // Push neutrals to the very beginning or end of spectrum to avoid interrupting the rainbow
+                if (isNeutralA && !isNeutralB) return -1;
+                if (!isNeutralA && isNeutralB) return 1;
 
-                // Group by structural chunks (e.g., separating primary hues, grays, and shadows into steps)
-                const numSteps = 8;
+                if (isNeutralA && isNeutralB) {
+                    // Sort gray/neutral clusters smoothly by darkness/lightness
+                    return hslA.l - hslB.l;
+                }
+
+                // Smooth rainbow grouping for standard color spectrums
+                if (Math.abs(hslA.h - hslB.h) > 15) {
+                    return hslA.h - hslB.h; 
+                }
                 
-                // Using step quantization factors to group similar values together
-                const stepA = Math.floor(hslA.h / (360 / numSteps));
-                const stepB = Math.floor(hslB.h / (360 / numSteps));
-
-                // If they belong to different general color blocks, sort by hue block
-                if (stepA !== stepB) {
-                    return stepA - stepB;
-                }
-
-                // If they are in the same block, sort smoothly by lightness
-                const lumA = Math.floor(hslA.l / (100 / numSteps));
-                const lumB = Math.floor(hslB.l / (100 / numSteps));
-                if (lumA !== lumB) {
-                    return lumA - lumB;
-                }
-
-                // Fallback to strict saturation flow
-                return hslA.s - hslB.s;
+                // If hues are extremely close (e.g. all your variants of green), group by brightness flow
+                return hslA.l - hslB.l;
             });
         }
 
-        function rgbToHsl(r, g, b) {
-            r /= 255; g /= 255; b /= 255;
+        function hexToHsl(hex) {
+            let r = parseInt(hex.substring(1, 3), 16) / 255;
+            let g = parseInt(hex.substring(3, 5), 16) / 255;
+            let b = parseInt(hex.substring(5, 7), 16) / 255;
             let max = Math.max(r, g, b), min = Math.min(r, g, b);
             let h, s, l = (max + min) / 2;
 
-            if (max === min) {
-                h = s = 0;
-            } else {
+            if (max === min) { h = s = 0; } 
+            else {
                 let d = max - min;
                 s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
                 switch (max) {
@@ -323,25 +336,44 @@
             return { h: h * 360, s: s * 100, l: l * 100 };
         }
 
+        // Handles adding items immediately without forcing a hard rearrange right away
         function processColors(side) {
             const inputElement = document.getElementById(`${side}-input`);
-            const gridElement = document.getElementById(`${side}-grid`);
-            
             const newHexes = extractHexCodes(inputElement.value);
             
-            if (newHexes.length === 0) {
-                alert("No valid HEX codes found.");
-                return;
-            }
+            if (newHexes.length === 0) return;
 
             const combinedList = [...colorLists[side], ...newHexes];
             colorLists[side] = [...new Set(combinedList)]; 
 
-            // Sort with the revised sorting formula
-            colorLists[side] = sortColorsByTheory(colorLists[side]);
+            renderGrid(side);
+            inputElement.value = '';
+            toggleInput(side);
+        }
 
-            // Render
+        // Master function called by the header "Refresh Grid" button
+        function reshuffleAndSort() {
+            const allCards = document.querySelectorAll('.color-card');
+            
+            // Add visual transition effect
+            allCards.forEach(card => card.classList.add('shuffling'));
+
+            setTimeout(() => {
+                // Apply advanced spectrum recalculation
+                colorLists.left = sortColorsByTheory(colorLists.left);
+                colorLists.right = sortColorsByTheory(colorLists.right);
+
+                // Re-render both grids
+                renderGrid('left');
+                renderGrid('right');
+            }, 350); // Matches CSS transition time
+        }
+
+        // Shared display function
+        function renderGrid(side) {
+            const gridElement = document.getElementById(`${side}-grid`);
             gridElement.innerHTML = '';
+            
             colorLists[side].forEach(hex => {
                 const card = document.createElement('div');
                 card.className = 'color-card';
@@ -358,9 +390,6 @@
                 card.appendChild(label);
                 gridElement.appendChild(card);
             });
-
-            inputElement.value = '';
-            toggleInput(side); // Auto-closes and minimizes panel after adding
         }
     </script>
 </body>
