@@ -18,6 +18,7 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         header {
@@ -37,6 +38,7 @@
             display: flex;
             flex: 1;
             overflow: hidden;
+            position: relative;
         }
 
         .side {
@@ -45,7 +47,7 @@
             flex-direction: column;
             padding: 20px;
             overflow-y: auto;
-            transition: background-color 0.3s;
+            position: relative;
         }
 
         #left-side {
@@ -58,25 +60,48 @@
         }
 
         .side-header {
-            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            position: relative;
         }
 
         .side-header h2 {
             font-size: 1.3rem;
-            margin-bottom: 10px;
             color: #424245;
         }
 
-        .input-area {
+        /* Floating Input Container */
+        .input-container {
+            position: relative;
             display: flex;
+            align-items: center;
+        }
+
+        .input-panel {
+            display: none;
+            position: absolute;
+            right: 50px;
+            top: -10px;
+            background: white;
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 100;
             gap: 10px;
-            margin-bottom: 20px;
+            width: 300px;
+            animation: slideIn 0.2s ease-out;
+        }
+
+        .input-panel.active {
+            display: flex;
         }
 
         textarea {
             flex: 1;
-            height: 60px;
-            padding: 10px;
+            height: 50px;
+            padding: 8px;
             border: 1px solid #d2d2d7;
             border-radius: 8px;
             resize: none;
@@ -89,19 +114,45 @@
             border-color: #0071e3;
         }
 
-        button {
+        /* Circle Toggle Button */
+        .toggle-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
             background-color: #0071e3;
             color: white;
             border: none;
-            border-radius: 8px;
-            padding: 0 15px;
+            font-size: 1.4rem;
+            line-height: 1;
             cursor: pointer;
-            font-weight: 500;
-            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s, transform 0.2s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
         }
 
-        button:hover {
+        .toggle-btn:hover {
             background-color: #0077ed;
+        }
+
+        .toggle-btn.open {
+            transform: rotate(45deg);
+            background-color: #ff3b30;
+        }
+
+        .add-btn {
+            background-color: #34c759;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0 12px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .add-btn:hover {
+            background-color: #28a745;
         }
 
         .color-grid {
@@ -141,6 +192,11 @@
             from { opacity: 0; transform: translateY(5px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
     </style>
 </head>
 <body>
@@ -153,9 +209,12 @@
         <div id="left-side" class="side">
             <div class="side-header">
                 <h2>人為色 (Artificial Colors)</h2>
-                <div class="input-area">
-                    <textarea id="left-input" placeholder="Paste HEX codes here (e.g., #ff0000, 00ff00, #333)"></textarea>
-                    <button onclick="processColors('left')">Add</button>
+                <div class="input-container">
+                    <div id="left-panel" class="input-panel">
+                        <textarea id="left-input" placeholder="Paste HEX codes..."></textarea>
+                        <button class="add-btn" onclick="processColors('left')">Add</button>
+                    </div>
+                    <button id="left-toggle" class="toggle-btn" onclick="toggleInput('left')">+</button>
                 </div>
             </div>
             <div id="left-grid" class="color-grid"></div>
@@ -164,9 +223,12 @@
         <div id="right-side" class="side">
             <div class="side-header">
                 <h2>自然色 (Natural Colors)</h2>
-                <div class="input-area">
-                    <textarea id="right-input" placeholder="Paste HEX codes here (e.g., #8b5a2b, 4f7942)"></textarea>
-                    <button onclick="processColors('right')">Add</button>
+                <div class="input-container">
+                    <div id="right-panel" class="input-panel">
+                        <textarea id="right-input" placeholder="Paste HEX codes..."></textarea>
+                        <button class="add-btn" onclick="processColors('right')">Add</button>
+                    </div>
+                    <button id="right-toggle" class="toggle-btn" onclick="toggleInput('right')">+</button>
                 </div>
             </div>
             <div id="right-grid" class="color-grid"></div>
@@ -174,23 +236,26 @@
     </div>
 
     <script>
-        // Global state tracking lists of valid hex colors for each side
-        const colorLists = {
-            left: [],
-            right: []
-        };
+        const colorLists = { left: [], right: [] };
 
-        // Helper function to extract valid hex codes from a text block
+        function toggleInput(side) {
+            const panel = document.getElementById(`${side}-panel`);
+            const btn = document.getElementById(`${side}-toggle`);
+            
+            panel.classList.toggle('active');
+            btn.classList.toggle('open');
+            
+            if (panel.classList.contains('active')) {
+                document.getElementById(`${side}-input`).focus();
+            }
+        }
+
         function extractHexCodes(text) {
-            // Regex matches 3 or 6 digit hex codes, with or without '#'
             const regex = /#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})/g;
             const matches = text.match(regex) || [];
             
             return matches.map(hex => {
-                // Ensure everything is formatted consistently with a '#' and uppercase
                 let cleanHex = hex.startsWith('#') ? hex : '#' + hex;
-                
-                // Expand short 3-digit hex (#fff -> #ffffff)
                 if (cleanHex.length === 4) {
                     cleanHex = '#' + cleanHex[1] + cleanHex[1] + cleanHex[2] + cleanHex[2] + cleanHex[3] + cleanHex[3];
                 }
@@ -198,17 +263,53 @@
             });
         }
 
-        // Convert HEX to HSL (Hue, Saturation, Lightness) for logical sorting
-        function hexToHsl(hex) {
-            let r = parseInt(hex.substring(1, 3), 16) / 255;
-            let g = parseInt(hex.substring(3, 5), 16) / 255;
-            let b = parseInt(hex.substring(5, 7), 16) / 255;
+        // Advanced Color Sorting algorithm using step-sorting methods
+        function sortColorsByTheory(hexArray) {
+            return hexArray.sort((hexA, hexB) => {
+                // Get RGB values
+                const rA = parseInt(hexA.substring(1, 3), 16);
+                const gA = parseInt(hexA.substring(3, 5), 16);
+                const bA = parseInt(hexA.substring(5, 7), 16);
 
+                const rB = parseInt(hexB.substring(1, 3), 16);
+                const gB = parseInt(hexB.substring(3, 5), 16);
+                const bB = parseInt(hexB.substring(5, 7), 16);
+
+                // Convert to HSL
+                const hslA = rgbToHsl(rA, gA, bA);
+                const hslB = rgbToHsl(rB, gB, bB);
+
+                // Group by structural chunks (e.g., separating primary hues, grays, and shadows into steps)
+                const numSteps = 8;
+                
+                // Using step quantization factors to group similar values together
+                const stepA = Math.floor(hslA.h / (360 / numSteps));
+                const stepB = Math.floor(hslB.h / (360 / numSteps));
+
+                // If they belong to different general color blocks, sort by hue block
+                if (stepA !== stepB) {
+                    return stepA - stepB;
+                }
+
+                // If they are in the same block, sort smoothly by lightness
+                const lumA = Math.floor(hslA.l / (100 / numSteps));
+                const lumB = Math.floor(hslB.l / (100 / numSteps));
+                if (lumA !== lumB) {
+                    return lumA - lumB;
+                }
+
+                // Fallback to strict saturation flow
+                return hslA.s - hslB.s;
+            });
+        }
+
+        function rgbToHsl(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
             let max = Math.max(r, g, b), min = Math.min(r, g, b);
             let h, s, l = (max + min) / 2;
 
             if (max === min) {
-                h = s = 0; // achromatic
+                h = s = 0;
             } else {
                 let d = max - min;
                 s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -219,33 +320,9 @@
                 }
                 h /= 6;
             }
-
-            return {
-                h: h * 360, // Hue degrees (0-360)
-                s: s * 100, // Saturation %
-                l: l * 100  // Lightness %
-            };
+            return { h: h * 360, s: s * 100, l: l * 100 };
         }
 
-        // Sort colors based on Color Theory (Primary sorting by Hue, secondary by Saturation/Lightness)
-        function sortColorsByTheory(hexArray) {
-            return hexArray.sort((a, b) => {
-                const hslA = hexToHsl(a);
-                const hslB = hexToHsl(b);
-
-                // Group very dark or very light colors (neutrals) separately if desired,
-                // but standard hue sorting is usually best for a clean spectrum rainbow effect.
-                if (hslA.h !== hslB.h) {
-                    return hslA.h - hslB.h; // Sort by rainbow order
-                }
-                if (hslA.s !== hslB.s) {
-                    return hslA.s - hslB.s; // Then by richness
-                }
-                return hslA.l - hslB.l;     // Then by brightness
-            });
-        }
-
-        // Main controller function to handle data processing and DOM updating
         function processColors(side) {
             const inputElement = document.getElementById(`${side}-input`);
             const gridElement = document.getElementById(`${side}-grid`);
@@ -253,18 +330,17 @@
             const newHexes = extractHexCodes(inputElement.value);
             
             if (newHexes.length === 0) {
-                alert("No valid HEX codes found. Try format like #FF5733 or 333.");
+                alert("No valid HEX codes found.");
                 return;
             }
 
-            // Merge new colors with existing colors, keeping unique entries
             const combinedList = [...colorLists[side], ...newHexes];
-            colorLists[side] = [...newSet = new Set(combinedList)]; // Removes duplicates
+            colorLists[side] = [...new Set(combinedList)]; 
 
-            // Apply color theory sorting
+            // Sort with the revised sorting formula
             colorLists[side] = sortColorsByTheory(colorLists[side]);
 
-            // Clear UI grid and rebuild it dynamically
+            // Render
             gridElement.innerHTML = '';
             colorLists[side].forEach(hex => {
                 const card = document.createElement('div');
@@ -283,8 +359,8 @@
                 gridElement.appendChild(card);
             });
 
-            // Reset textarea for next inputs
             inputElement.value = '';
+            toggleInput(side); // Auto-closes and minimizes panel after adding
         }
     </script>
 </body>
